@@ -23,8 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# Large video files
+# Large video files (except public/)
 *.mp4
+!public/*.mp4
 
 # Claude
 .claude

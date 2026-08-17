@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Sparkles, RotateCcw, Volume2, VolumeX, Crown, Stars, MailOpen, Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { sound } from '../../utils/sound';
-import messageVideo from '../../../videoplayback (2).mp4';
+const messageVideo = `${import.meta.env.BASE_URL}message-video.mp4`;
 import { TRANSPARENT_CUTOUTS } from '../../utils/photosData';
 
 // --- Measured timing for videoplayback (2).mp4 (66s total) ---
