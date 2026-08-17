@@ -12,7 +12,7 @@ export default function SpecialMessage({
   const [isMuted, setIsMuted] = useState(sound.isMuted);
 
   const defaultMsg =
-    `Happy Birthday, ${name}! 🎂 You deserve all the happiness, love, and smiles in the world today and always. You have this special way of making everything around you brighter, your smile, your kindness, and the way you make people feel truly cared for. I hope your day is filled with laughter, surprises, and moments that make your heart happy. You're truly one of a kind, and I just want you to know how special you are. Keep being the amazing person you are, spreading joy wherever you go. Wishing you endless happiness, success, and all the sweet things life has to offer. Stay awesome! 💕`;
+    `Happy Birthday, My Friend! 🎉 You deserve all the happiness, love, and smiles in the world today and always. You have this special way of making everything around you brighter — your energy, your kindness, and your warm heart. You've already worked so hard and done so much toward your dreams, and I hope your day is filled with joy, surprises, and moments that make your heart sing. You're truly one of a kind, and today we celebrate YOU! 👑💕 I want you to never look back — always keep moving straight toward your dream until you reach it. I truly believe in you, and I know you have what it takes to reach the top of the mountain. Wishing you endless laughter, success, and all the sweet things life has to offer! 🎂✨ I'll always be right here, cheering you on. With Love, Your Friend 💕`;
 
   const finalMessage = message || defaultMsg;
 
