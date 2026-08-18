@@ -10,7 +10,7 @@ export default function CustomizerModal({
   onSave,
 }) {
   const [name, setName] = useState(config.name || 'My Oni');
-  const [age, setAge] = useState(config.age || '20');
+  const [age, setAge] = useState(config.age || '19');
   const [message, setMessage] = useState(config.message || '');
   const [copied, setCopied] = useState(false);
 

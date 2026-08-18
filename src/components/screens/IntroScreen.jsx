@@ -6,7 +6,7 @@ import GradientButton from '../GradientButton';
 import { sound } from '../../utils/sound';
 import { TRANSPARENT_CUTOUTS } from '../../utils/photosData';
 
-export default function IntroScreen({ name = 'My Oni', onStart }) {
+export default function IntroScreen({ name = 'My Oni', age = '19', onStart }) {
   const handleClick = () => {
     sound.playPop();
     sound.startBgMusic();
@@ -89,6 +89,19 @@ export default function IntroScreen({ name = 'My Oni', onStart }) {
         <h1 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 via-rose-500 to-purple-600 font-['Itim',_cursive] leading-tight drop-shadow-sm">
           Happy Birthday, <span className="text-rose-500 underline decoration-pink-300 decoration-wavy">{name}</span>! 🎉 🎂
         </h1>
+
+        {/* "My Oni turns 19" Age Badge */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.55, type: 'spring', stiffness: 180 }}
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 text-white font-extrabold text-base md:text-lg shadow-lg shadow-pink-500/30 font-['Itim',_cursive] border-2 border-white/40"
+        >
+          <Stars className="w-5 h-5 text-amber-300 animate-spin-slow" />
+          <span>From today, {name} turns {age}!</span>
+          <Heart className="w-5 h-5 fill-white text-white animate-pulse" />
+          <span>🎀</span>
+        </motion.div>
 
         <p className="text-sm md:text-base font-semibold text-pink-600/90 font-['Itim',_cursive] max-w-md mx-auto leading-relaxed">
           Welcome to your personalized birthday magical experience! Handcrafted with sweet memories, interactive surprises, and endless love 💕 🎀
