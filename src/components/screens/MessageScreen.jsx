@@ -18,6 +18,7 @@ const GREEN_SEGMENT_START = 60.1; // when the photo backdrop should start fading
 const GREEN_SEGMENT_SAFE_END = 64.3; // cut to the end scene here, safely before the un-keyable fade begins
 const PHOTO_FADE_IN_SECONDS = 0.9; // how long the photo takes to ease in, so it feels natural instead of popping in
 const CANVAS_FADE_OUT_MS = 320; // how long the video stage takes to ease out into the letter, so the cut to GREEN_SEGMENT_SAFE_END reads as a smooth ending instead of a jump-cut
+const MIN_REAL_SECONDS_BEFORE_NATURAL_END = GREEN_SEGMENT_SAFE_END - 3; // some mobile in-app browsers (WhatsApp/Instagram/Messenger webviews especially) misreport video.currentTime - or fire `ended` outright - within the first second of playback, which was cutting the video after ~1s instead of near its real ending. Natural-end triggers are ignored until roughly this much real time has actually elapsed since playback started.
 
 // High Precision Green Screen Removal (Keying out green hue range)
 function isGreenPixel(r, g, b) {
@@ -60,6 +61,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
   const animFrameId = useRef(null);
   const isEndingRef = useRef(false);
   const showPhotoBackdropRef = useRef(false);
+  const playStartTimeRef = useRef(null);
 
   const defaultText =
     `Happy Birthday, My Friend! 🎉\n\nYou deserve all the happiness, love, and smiles in the world today and always. You have this special way of making everything around you brighter — your energy, your kindness, and your warm heart.\n\nYou've already worked so hard and done so much toward your dreams, and I hope your day is filled with joy, surprises, and moments that make your heart sing. You're truly one of a kind, and today we celebrate YOU! 👑💕\n\nI want you to never look back — always keep moving straight toward your dream until you reach it. I truly believe in you, and I know you have what it takes to reach the top of the mountain.\n\nWishing you endless laughter, success, and all the sweet things life has to offer! 🎂✨ I'll always be right here, cheering you on.\n\nWith Love, Your Friend 💕`;
@@ -143,6 +145,23 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     }, CANVAS_FADE_OUT_MS);
   };
 
+  // Only allow the video to end "on its own" (native `ended` event, or our
+  // own cutoff/ended checks in the frame loop below) once a plausible amount
+  // of REAL wall-clock time has actually passed since playback started. This
+  // guards against unreliable playback-position reporting in some mobile
+  // in-app browsers (see MIN_REAL_SECONDS_BEFORE_NATURAL_END above) that was
+  // ending the video after ~1s instead of near its real end. A manual skip
+  // (the "Skip to Letter Reveal" button) or a total playback failure still
+  // calls triggerEnd() directly - those are meant to end immediately.
+  const triggerNaturalEnd = () => {
+    const elapsedRealSeconds =
+      playStartTimeRef.current === null
+        ? Infinity // never recorded a start - don't get stuck forever, just allow it
+        : (performance.now() - playStartTimeRef.current) / 1000;
+    if (elapsedRealSeconds < MIN_REAL_SECONDS_BEFORE_NATURAL_END) return;
+    triggerEnd();
+  };
+
   // Real-time Chroma Keying
   useEffect(() => {
     const video = videoRef.current;
@@ -160,13 +179,21 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
       // which can be unreported/inaccurate on the very first play and is what
       // caused the green fade-out to slip through only sometimes). This lands
       // safely before the source video's un-keyable fade-to-black at ~64.7s.
+      // Gated by triggerNaturalEnd() - see its comment - so an unreliable
+      // early currentTime reading can't cut playback down to ~1s.
       if (currentTime >= GREEN_SEGMENT_SAFE_END) {
-        triggerEnd();
-        return;
+        triggerNaturalEnd();
+        if (isEndingRef.current) return;
       }
 
       if (video.paused || video.ended) {
-        if (video.ended) triggerEnd();
+        if (video.ended) {
+          triggerNaturalEnd();
+          if (isEndingRef.current) return;
+          // Guard held it back - keep polling every frame until enough real
+          // time has passed, then it'll actually end.
+          animFrameId.current = requestAnimationFrame(processFrame);
+        }
         return;
       }
 
@@ -207,6 +234,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     };
 
     const handlePlay = () => {
+      playStartTimeRef.current = performance.now();
       animFrameId.current = requestAnimationFrame(processFrame);
     };
 
@@ -329,7 +357,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
           src={messageVideo}
           playsInline
           webkit-playsinline="true"
-          onEnded={triggerEnd}
+          onEnded={triggerNaturalEnd}
           aria-hidden="true"
           className="absolute w-px h-px opacity-0 pointer-events-none overflow-hidden -z-10"
         />
