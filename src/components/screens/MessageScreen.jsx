@@ -17,6 +17,7 @@ import { TRANSPARENT_CUTOUTS } from '../../utils/photosData';
 const GREEN_SEGMENT_START = 60.1; // when the photo backdrop should start fading in behind the keyed text
 const GREEN_SEGMENT_SAFE_END = 64.3; // cut to the end scene here, safely before the un-keyable fade begins
 const PHOTO_FADE_IN_SECONDS = 0.9; // how long the photo takes to ease in, so it feels natural instead of popping in
+const CANVAS_FADE_OUT_MS = 320; // how long the video stage takes to ease out into the letter, so the cut to GREEN_SEGMENT_SAFE_END reads as a smooth ending instead of a jump-cut
 
 // High Precision Green Screen Removal (Keying out green hue range)
 function isGreenPixel(r, g, b) {
@@ -44,6 +45,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
   const [showMessage, setShowMessage] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [videoAudioBlocked, setVideoAudioBlocked] = useState(false);
+  const [videoPlayBlocked, setVideoPlayBlocked] = useState(false);
   const [canvasVisible, setCanvasVisible] = useState(true);
   const [showPhotoBackdrop, setShowPhotoBackdrop] = useState(false);
 
@@ -71,6 +73,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     showPhotoBackdropRef.current = false;
     setCanvasVisible(true);
     setShowPhotoBackdrop(false);
+    setVideoPlayBlocked(false);
 
     const video = videoRef.current;
     if (video) {
@@ -84,7 +87,14 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
           video.muted = true;
           setVideoAudioBlocked(true);
           video.play().catch(() => {
-            triggerEnd();
+            // Even a muted, playsInline autoplay got blocked - happens in some
+            // in-app browsers (Instagram/Messenger webviews) and with iOS's
+            // "Never Auto-Play" Safari setting. Previously this silently
+            // skipped straight to the letter with zero video shown, which is
+            // what made it look like the video "barely played" on phones.
+            // Give the user a real tap to start it instead - a direct tap is
+            // always allowed to play video, no exceptions.
+            setVideoPlayBlocked(true);
           });
         });
     }
@@ -98,7 +108,9 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     if (isEndingRef.current) return;
     isEndingRef.current = true;
 
-    // 1. Hide canvas immediately to ensure ZERO green glitch at video end
+    // 1. Ease the canvas out (via its own CSS opacity transition, see JSX)
+    // instead of snapping it away, so hitting GREEN_SEGMENT_SAFE_END reads as
+    // the video winding down rather than a jump-cut to the letter.
     setCanvasVisible(false);
     showPhotoBackdropRef.current = false;
     setShowPhotoBackdrop(false);
@@ -110,15 +122,7 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
       videoRef.current.pause();
     }
 
-    // Clear canvas pixels immediately
-    if (canvasEl) {
-      const ctx = canvasEl.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    }
-
-    setVideoEnded(true);
-
-    // Trigger celebration confetti
+    // Trigger celebration confetti right away so it still feels tied to the moment
     confetti({
       particleCount: 120,
       spread: 90,
@@ -127,7 +131,16 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     });
     sound.playConfettiBurst();
 
-    setTimeout(() => setShowMessage(true), 150);
+    // Let the fade-out finish before clearing the frame and swapping in the
+    // letter, so the two crossfade instead of flashing a blank card in between.
+    setTimeout(() => {
+      if (canvasEl) {
+        const ctx = canvasEl.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+      }
+      setVideoEnded(true);
+      setShowMessage(true);
+    }, CANVAS_FADE_OUT_MS);
   };
 
   // Real-time Chroma Keying
@@ -241,6 +254,25 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
     setVideoAudioBlocked(false);
   };
 
+  // Fallback for when even muted autoplay was blocked (see the effect above).
+  // This runs directly inside a click handler, so it's a real, direct user
+  // gesture - every mobile browser and in-app webview allows video playback
+  // started this way, with no autoplay-policy exceptions.
+  const handleTapToPlay = () => {
+    setVideoPlayBlocked(false);
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = isMuted;
+    video
+      .play()
+      .then(() => setVideoAudioBlocked(false))
+      .catch(() => {
+        video.muted = true;
+        setVideoAudioBlocked(true);
+        video.play().catch(() => triggerEnd());
+      });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -311,8 +343,19 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
               transition={{ duration: 0.2 }}
               className="w-full flex flex-col items-center justify-center p-3 relative"
             >
+              {/* Mobile Tap to Start Overlay - shown when even muted autoplay was blocked */}
+              {videoPlayBlocked && (
+                <button
+                  onClick={handleTapToPlay}
+                  className="mb-2 px-4 py-1.5 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-full shadow-lg animate-bounce flex items-center gap-1.5 cursor-pointer z-30 font-['Itim',_cursive]"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Tap to Play Video ▶</span>
+                </button>
+              )}
+
               {/* Mobile Tap to Enable Sound Overlay */}
-              {videoAudioBlocked && (
+              {!videoPlayBlocked && videoAudioBlocked && (
                 <button
                   onClick={handleUnmuteVideo}
                   className="mb-2 px-4 py-1.5 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-full shadow-lg animate-bounce flex items-center gap-1.5 cursor-pointer z-30 font-['Itim',_cursive]"
@@ -353,8 +396,11 @@ export default function MessageScreen({ name = 'My Oni', message = '' }) {
                 {/* Canvas rendering the video's own frames, green keyed to transparent */}
                 <canvas
                   ref={setCanvasEl}
-                  onClick={handleUnmuteVideo}
-                  style={{ display: canvasVisible ? 'block' : 'none' }}
+                  onClick={videoPlayBlocked ? handleTapToPlay : handleUnmuteVideo}
+                  style={{
+                    opacity: canvasVisible ? 1 : 0,
+                    transition: `opacity ${CANVAS_FADE_OUT_MS}ms ease-out`,
+                  }}
                   className="relative z-10 w-full h-full object-contain select-none cursor-pointer"
                 />
               </div>
